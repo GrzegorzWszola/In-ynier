@@ -3,15 +3,26 @@
 import csv
 import re
 import pandas as pd
+from dotenv import load_dotenv
+import os
 
-lexicon_file_path = "/home/grzeg/inz/data/NRC-VAD-Lexicon-v2.1/NRC-VAD-Lexicon-v2.1.txt"
-lexicon_output_file_path = "/home/grzeg/inz/data/nrc_vad_lexicon_dataset.csv"
-emo_bank_file_path = "/home/grzeg/inz/data/emo_bank/corpus/emobank.csv"
-emo_output_file_path = "/home/grzeg/inz/data/emo_bank_dataset.csv"
-go_emotions_file_path = "/home/grzeg/inz/data/go_emotions/archive/go_emotions_dataset.csv"
-go_output_file_path = "/home/grzeg/inz/data/go_emotions_dataset.csv"
+load_dotenv()
 
-calculate_vad_from_text = True
+LEXICON_FILE=""
+LEXICON_OUTPUT=""
+EMO_BANK_FILE=""
+EMO_BANK_OUTPUT=""
+GO_EMOTIONS_FILE=""
+GO_EMOTIONS_OUTPUT=""
+
+lexicon_file_path = os.getenv("LEXICON_FILE")
+lexicon_output_file_path = os.getenv("LEXICON_OUTPUT")
+emo_bank_file_path = os.getenv("EMO_BANK_FILE")
+emo_output_file_path = os.getenv("EMO_BANK_OUTPUT")
+go_emotions_file_path = os.getenv("GO_EMOTIONS_FILE")
+go_output_file_path = os.getenv("GO_EMOTIONS_OUTPUT")
+
+calculate_vad_from_text = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
 
 # Emotions categorized by go emotions, the VAD values are taken for transformation from lexicon
 #admiration,amusement,anger,annoyance,approval,caring,confusion,curiosity,desire,disappointment,disapproval,disgust,embarrassment,excitement,fear,gratitude,grief,joy,love,nervousness,optimism,pride,realization,relief,remorse,sadness,surprise,neutral
