@@ -8,13 +8,6 @@ import os
 
 load_dotenv()
 
-LEXICON_FILE=""
-LEXICON_OUTPUT=""
-EMO_BANK_FILE=""
-EMO_BANK_OUTPUT=""
-GO_EMOTIONS_FILE=""
-GO_EMOTIONS_OUTPUT=""
-
 lexicon_file_path = os.getenv("LEXICON_FILE")
 lexicon_output_file_path = os.getenv("LEXICON_OUTPUT")
 emo_bank_file_path = os.getenv("EMO_BANK_FILE")
