@@ -5,21 +5,13 @@ import re
 import pandas as pd
 
 lexicon_file_path = "/home/grzeg/inz/data/NRC-VAD-Lexicon-v2.1/NRC-VAD-Lexicon-v2.1.txt"
+lexicon_output_file_path = "/home/grzeg/inz/data/nrc_vad_lexicon_dataset.csv"
 emo_bank_file_path = "/home/grzeg/inz/data/emo_bank/corpus/emobank.csv"
 emo_output_file_path = "/home/grzeg/inz/data/emo_bank_dataset.csv"
 go_emotions_file_path = "/home/grzeg/inz/data/go_emotions/archive/go_emotions_dataset.csv"
 go_output_file_path = "/home/grzeg/inz/data/go_emotions_dataset.csv"
 
-count_static_emotion_labels = True
-
-def transform_emo_bank():
-    df = pd.read_csv(emo_bank_file_path)
-    # Transform the emo bank scale (1 to 5), to the lexicon scale (-1, 1), by the formula
-    #   tranformed_X = (old_X - 3) * 0.5
-    df[["V", "A", "D"]] = ((df[["V", "A", "D"]] - 3) * 0.5).round(4)
-    df.to_csv(emo_output_file_path, index=False)
-
-    print(f"[Emo_Bank] File created and data transformed, saved to: {emo_output_file_path}")
+calculate_vad_from_text = True
 
 # Emotions categorized by go emotions, the VAD values are taken for transformation from lexicon
 #admiration,amusement,anger,annoyance,approval,caring,confusion,curiosity,desire,disappointment,disapproval,disgust,embarrassment,excitement,fear,gratitude,grief,joy,love,nervousness,optimism,pride,realization,relief,remorse,sadness,surprise,neutral
@@ -104,52 +96,82 @@ def build_vad_for_sentence(sentence: str, unigrams: dict, mwe_by_first_word: dic
     v, a, d = zip(*matched)
     return (sum(v) / len(v), sum(a) / len(a), sum(d) / len(d))
 
-def estimate_vad_from_emotion_label():
-    return
+def estimate_vad_from_emotion_label(row, emotion_cols):
+    active = [emotion_map[e] for e in emotion_cols if row.get(e, 0) == 1 and e in emotion_map]
+    if not active:
+        return (None, None, None)
+    v, a, d = zip(*active)
+    return (round(sum(v) / len(v), 4), round(sum(a) / len(a), 4), round(sum(d) / len(d), 4))
 
 def transform_go_emotions():
     lexicon = load_lexicon()
     unigrams, mwe_by_first_word = build_lexicon_index(lexicon)
 
     df = pd.read_csv(go_emotions_file_path, sep=",")
-    print("[Go_Emotions] Opened files")
+    print(f"[Go_Emotions] File read and dataframe created: {go_emotions_file_path}")
     df = df[df["example_very_unclear"] == False]
     print("[Go_Emotions] Deleted unclear senteces")
 
-    if count_static_emotion_labels:
-        emotion_cols = [
-            "admiration", "amusement", "anger", "annoyance", "approval", "caring",
-            "confusion", "curiosity", "desire", "disappointment", "disapproval",
-            "disgust", "embarrassment", "excitement", "fear", "gratitude", "grief",
-            "joy", "love", "nervousness", "optimism", "pride", "realization",
-            "relief", "remorse", "sadness", "surprise", "neutral",
-        ]
+    emotion_cols = [
+        "admiration", "amusement", "anger", "annoyance", "approval", "caring",
+        "confusion", "curiosity", "desire", "disappointment", "disapproval",
+        "disgust", "embarrassment", "excitement", "fear", "gratitude", "grief",
+        "joy", "love", "nervousness", "optimism", "pride", "realization",
+        "relief", "remorse", "sadness", "surprise", "neutral",
+    ]
 
-        df[["s_V", "s_A", "s_D"]] = df.apply(
-            lambda t: pd.Series()
-        )
-
-    df = df.iloc[:, :3]
-    # Calculate VAD values based on the given text
-    df[["c_V", "c_A", "c_D"]] = df["text"].apply(
-        lambda t: pd.Series(build_vad_for_sentence(t, unigrams, mwe_by_first_word))
+    df[["estimated_V", "estimated_A", "estimated_D"]] = df.apply(
+        lambda row: pd.Series(estimate_vad_from_emotion_label(row, emotion_cols)), axis=1
     )
-    df[["c_V", "c_A", "c_D"]] = df[["c_V", "c_A", "c_D"]].round(4)
+    print("[Go_Emotions] Estimated VAD from given emotions labels")
+    
+    # Keep id, text, example_very_unclear + estimated VAD before trimming
+    estimated_cols = ["id", "text", "example_very_unclear", "estimated_V", "estimated_A", "estimated_D"]  
+    df = df[estimated_cols]
+    # Calculate VAD values based on the given text
+    if calculate_vad_from_text:
+        df[["calculated_V", "calculated_A", "calculated_D"]] = df["text"].apply(
+            lambda t: pd.Series(build_vad_for_sentence(t, unigrams, mwe_by_first_word))
+        )
+        df[["calculated_V", "calculated_A", "calculated_D"]] = df[["calculated_V", "calculated_A", "calculated_D"]].round(4)
+        print("[Go_Emotions] Calculated VAD from read text")
 
     df.to_csv(go_output_file_path, index=False)
 
+def transform_nrc_vad_lexicon():
+    df = pd.read_csv(lexicon_file_path, sep='\t')
+    print(f"[Lexicon] File read and dataframe created: {lexicon_file_path}")
+    df = df.rename(columns={
+        "valence": "V",
+        "arousal": "A",
+        "dominance": "D"
+    })
+    print(f"[Lexicon] File created and data transformed, saved to: {lexicon_output_file_path}")
+    df.to_csv(lexicon_output_file_path, index=False)
 
+def transform_emo_bank():
+    lexicon = load_lexicon()
+    unigrams, mwe_by_first_word = build_lexicon_index(lexicon)
 
-        
+    df = pd.read_csv(emo_bank_file_path)
+    df = df.dropna(subset=["text"])
+    print(f"[Emo_Bank] File read and dataframe created: {emo_bank_file_path}")
+    # Transform the emo bank scale (1 to 5), to the lexicon scale (-1, 1), by the formula
+    #   tranformed_X = (old_X - 3) * 0.5
+    df[["estimated_V", "estimated_A", "estimated_D"]] = ((df[["V", "A", "D"]] - 3) * 0.5).round(4)
+    print(f"[Emo_Bank] \"Estimated\" values from the VAD values")
+    if calculate_vad_from_text:
+        df[["calculated_V", "calculated_A", "calculated_D"]] = df["text"].apply(
+            lambda t: pd.Series(build_vad_for_sentence(t, unigrams, mwe_by_first_word))
+        )
+        df[["calculated_V", "calculated_A", "calculated_D"]] = df[["calculated_V", "calculated_A", "calculated_D"]].round(4)
+        print("[Emo_bank] Calculated VAD from read text")
 
-
-
-
-
+    df = df.drop(columns=["V", "A", "D"])
+    df.to_csv(emo_output_file_path, index=False)
+    print(f"[Emo_Bank] File created and data transformed, saved to: {emo_output_file_path}")
 
 if __name__ == "__main__":
-    print("Emo_bank transformation\n" + "-"*60)
     transform_emo_bank()
-    print("-"*60 + "\nGo_emotions transformation\n" + "-"*60)
     transform_go_emotions()
-
+    transform_nrc_vad_lexicon()
